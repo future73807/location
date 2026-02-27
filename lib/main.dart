@@ -48,6 +48,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   String _errorMessage = '';
   String _lastPromptedCredentials = '';
   bool _hasShownAutoFillToast = false;
+  DateTime? _lastBackPress;
 
   static const _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -829,7 +830,37 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final now = DateTime.now();
+        // 2秒内连按两次返回 → 退出应用
+        if (_lastBackPress != null &&
+            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+          return;
+        }
+        _lastBackPress = now;
+        // 有历史则后退 + 提示，无历史则仅提示
+        if (await _webViewController.canGoBack()) {
+          _webViewController.goBack();
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('再按一次返回退出'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              margin: const EdgeInsets.all(16),
+              backgroundColor: _kPrimaryColor.withOpacity(0.9),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         toolbarHeight: 40,
         backgroundColor: _kPrimaryColor,
@@ -934,6 +965,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 

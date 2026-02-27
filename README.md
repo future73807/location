@@ -1,166 +1,56 @@
-# Vivo设备查找 - Flutter应用
+# vivo设备查找 - Flutter应用
 
-这是一个使用Flutter开发的Android应用，用于访问vivo设备查找网站（https://find.vivo.com.cn/h5/home/devices），并实现登录凭证的长期保存。
+基于 Flutter WebView 的 Android 应用，封装 [vivo查找设备](https://find.vivo.com.cn/h5/home/devices) 网页，支持登录凭证持久化和密码管理。
 
-## 功能特点
+## 功能
 
-- 🌐 通过WebView访问vivo设备查找网站
-- 💾 自动保存登录凭证（Cookies）
-- 🔄 下次打开应用自动恢复登录状态
-- 🗑️ 可手动清除登录凭证
-- 📱 完整的Android应用体验
+- **WebView 封装** — 内嵌 vivo 设备查找网页，原生应用体验
+- **登录持久化** — Cookie + DOM Storage + SharedPreferences 多重保存，长时间保持登录
+- **密码自动保存** — 检测登录表单，提示保存/更新密码
+- **密码自动填充** — 页面加载后自动填充已保存的凭证（支持点击"密码登录"标签页）
+- **多账号管理** — 支持保存多个账号，通过单选框选择用于自动填充的账号
+- **加密存储** — 密码使用 `flutter_secure_storage`（Android EncryptedSharedPreferences）加密保存
+- **生物认证** — 查看密码前需通过指纹/面容/PIN/图案验证
+- **返回手势** — 返回键优先 WebView 后退，无历史时双击退出
+- **工具栏** — 主页、刷新、密码管理、清除凭证
 
 ## 技术栈
 
-- Flutter SDK (>=3.0.0)
-- WebView加载网页内容
-- SharedPreferences持久化存储登录凭证
-- Cookie管理实现长期登录
+| 组件 | 说明 |
+|------|------|
+| Flutter >=3.0.0 | 跨平台框架 |
+| webview_flutter ^4.4.2 | WebView 组件 |
+| shared_preferences ^2.2.2 | Cookie/配置持久化 |
+| flutter_secure_storage ^9.2.4 | 加密存储密码 |
+| local_auth ^2.3.0 | 设备生物认证 |
+| hugeicons ^1.1.5 | 图标库 |
 
-## 构建步骤
-
-### 1. 确保已安装Flutter
-
-```bash
-flutter doctor
-```
-
-如果没有安装Flutter，请访问 [Flutter官网](https://flutter.dev/docs/get-started/install) 下载安装。
-
-### 2. 安装依赖
-
-在项目根目录运行：
+## 构建
 
 ```bash
+# 安装依赖
 flutter pub get
-```
 
-### 3. 连接Android设备或启动模拟器
-
-```bash
-flutter devices
-```
-
-### 4. 运行应用
-
-```bash
-# 调试版本
-flutter run
-
-# 或指定设备
-flutter run -d <device-id>
-```
-
-### 5. 构建APK
-
-```bash
-# 构建调试版本APK
-flutter build apk --debug
-
-# 构建发布版本APK
+# 构建 Release APK
 flutter build apk --release
+
+# 安装到设备
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
-
-APK文件位置：
-- 调试版本：`build/app/outputs/flutter-apk/app-debug.apk`
-- 发布版本：`build/app/outputs/flutter-apk/app-release.apk`
-
-### 6. 安装到设备
-
-```bash
-# 通过USB安装
-flutter install
-
-# 或手动安装APK
-adb install build/app/outputs/flutter-apk/app-release.apk
-```
-
-## 使用说明
-
-1. **首次使用**：打开应用后，会加载vivo设备查找网站
-2. **登录**：在WebView中完成登录操作
-3. **自动保存**：登录成功后，应用会自动保存登录凭证
-4. **下次使用**：重新打开应用时，会自动恢复登录状态
-5. **清除凭证**：点击右上角菜单 → "清除登录凭证"可以清除保存的登录信息
 
 ## 项目结构
 
 ```
-├── lib/
-│   └── main.dart              # 主应用代码
-├── android/                   # Android平台配置
-│   ├── app/
-│   │   ├── build.gradle       # 应用级构建配置
-│   │   └── src/main/
-│   │       ├── AndroidManifest.xml
-│   │       └── kotlin/        # MainActivity
-│   ├── build.gradle           # 项目级构建配置
-│   └── settings.gradle
-├── pubspec.yaml               # Flutter依赖配置
-└── README.md                  # 项目说明
+lib/
+  main.dart              # 应用入口、WebView、密码管理、UI
+assets/
+  icon.png               # 应用图标（导航箭头）
+android/
+  app/src/main/
+    AndroidManifest.xml   # 权限配置（网络、生物认证）
+    kotlin/.../
+      MainActivity.kt     # FlutterFragmentActivity（生物认证需要）
 ```
-
-## 权限说明
-
-应用需要以下权限：
-- `INTERNET`：访问网络
-- `ACCESS_NETWORK_STATE`：检查网络状态
-
-## 注意事项
-
-- 本应用仅用于个人学习和研究
-- 请遵守vivo设备查找网站的使用条款
-- 登录凭证存储在本地，请确保设备安全
-- 如遇到加载问题，请检查网络连接
-
-## 自定义配置
-
-### 修改应用名称
-
-编辑 [android/app/src/main/AndroidManifest.xml](android/app/src/main/AndroidManifest.xml)：
-```xml
-android:label="你的应用名称"
-```
-
-### 修改应用包名
-
-1. 重命名包目录：`com/example/vivo_device_finder` → `your/package/name`
-2. 更新 [android/app/build.gradle](android/app/build.gradle)：
-```gradle
-applicationId "your.package.name"
-namespace "your.package.name"
-```
-3. 更新 [MainActivity.kt](android/app/src/main/kotlin/com/example/vivo_device_finder/MainActivity.kt)：
-```kotlin
-package your.package.name
-```
-
-### 修改目标网址
-
-编辑 [lib/main.dart](lib/main.dart)，修改URL：
-```dart
-.loadRequest(Uri.parse('https://your-url.com'));
-```
-
-## 故障排除
-
-### WebView显示空白
-- 检查网络连接
-- 确认目标网站可访问
-- 尝试清除应用缓存
-
-### 登录状态未保存
-- 检查应用存储权限
-- 确认网站使用了可持久化的Cookie
-- 尝试手动刷新页面
-
-### APK安装失败
-- 确保允许安装未知来源应用
-- 检查Android版本兼容性（最低Android 5.0）
-
-## 开发者信息
-
-本应用使用Flutter框架开发，支持Android 5.0（API 21）及以上版本。
 
 ## 许可证
 

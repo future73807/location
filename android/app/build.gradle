@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.vivo_device_finder"
+    namespace "com.vivo.deviceFind"
     compileSdk 35
     ndkVersion flutter.ndkVersion
 
@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.vivo_device_finder"
+        applicationId "com.vivo.deviceFind"
         minSdk 21
         targetSdk 35
         versionCode flutterVersionCode.toInteger()

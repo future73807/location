@@ -1,4 +1,4 @@
-package com.example.vivo_device_finder
+package com.vivo.deviceFind
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
