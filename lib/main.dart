@@ -54,6 +54,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
   static final _localAuth = LocalAuthentication();
+  static const _cookieChannel = MethodChannel('com.vivo.deviceFind/cookies');
 
   @override
   void initState() {
@@ -90,7 +91,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ),
       );
 
-    // 启用 DOM Storage 和数据库存储，确保登录状态持久化
+    // 平台特定配置
     final platform = _webViewController.platform;
     if (platform is AndroidWebViewController) {
       AndroidWebViewController.enableDebugging(false);
@@ -105,10 +106,57 @@ class _WebViewScreenState extends State<WebViewScreen> {
       },
     );
 
-    _webViewController.loadRequest(Uri.parse(_kHomeUrl));
+    // 确保 Cookie 持久化后再加载页面
+    _initCookiesAndLoad();
   }
 
   // ---- 凭证持久化 ----
+
+  /// 初始化 Cookie 环境并加载页面
+  Future<void> _initCookiesAndLoad() async {
+    try {
+      // 确保原生 CookieManager 接受 Cookie
+      await _cookieChannel.invokeMethod('ensureAcceptCookies');
+      // 尝试从 SharedPreferences 恢复 Cookie（作为兜底）
+      await _restoreCookies();
+    } catch (e) {
+      debugPrint('Error initializing cookies: $e');
+    }
+    _webViewController.loadRequest(Uri.parse(_kHomeUrl));
+  }
+
+  /// 从 SharedPreferences 恢复 Cookie 到 WebView CookieManager
+  Future<void> _restoreCookies() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedCookies = prefs.getString('saved_cookies');
+      if (savedCookies == null || savedCookies.isEmpty) return;
+
+      final cookieManager = WebViewCookieManager();
+      // runJavaScriptReturningResult 返回的字符串带 JSON 引号，需要去掉
+      final cleanCookies = savedCookies
+          .replaceAll(RegExp(r'^"'), '')
+          .replaceAll(RegExp(r'"$'), '');
+      final parts = cleanCookies.split('; ');
+
+      for (final part in parts) {
+        final idx = part.indexOf('=');
+        if (idx <= 0) continue;
+        final name = part.substring(0, idx).trim();
+        final value = part.substring(idx + 1).trim();
+        if (name.isEmpty) continue;
+
+        // 为可能涉及的域名都设置一遍
+        for (final domain in ['find.vivo.com.cn', '.vivo.com.cn']) {
+          await cookieManager.setCookie(
+            WebViewCookie(name: name, value: value, domain: domain, path: '/'),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error restoring cookies: $e');
+    }
+  }
 
   Future<void> _saveCookies(String url) async {
     try {
@@ -118,6 +166,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
       await prefs.setString('saved_cookies', cookies.toString());
       await prefs.setString('last_url', url);
       await prefs.setInt('last_login', DateTime.now().millisecondsSinceEpoch);
+
+      // 关键：将原生 CookieManager 的 Cookie（含 HttpOnly）刷写到磁盘
+      await _cookieChannel.invokeMethod('flushCookies');
     } catch (e) {
       debugPrint('Error saving cookies: $e');
     }
@@ -861,111 +912,111 @@ class _WebViewScreenState extends State<WebViewScreen> {
         }
       },
       child: Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 40,
-        backgroundColor: _kPrimaryColor,
-        foregroundColor: Colors.white,
-        title: const Text('vivo设备查找', style: TextStyle(fontSize: 16)),
-        actions: [
-          IconButton(
-            icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedHome01,
-                color: Colors.white,
-                size: 20),
-            onPressed: _goHome,
-            tooltip: '主页',
-          ),
-          IconButton(
-            icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedSquareArrowReload02,
-                color: Colors.white,
-                size: 20),
-            onPressed: _reloadPage,
-            tooltip: '刷新',
-          ),
-          IconButton(
-            icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedLocked,
-                color: Colors.white,
-                size: 20),
-            onPressed: _viewSavedPassword,
-            tooltip: '查看密码',
-          ),
-          IconButton(
-            icon: const HugeIcon(
-                icon: HugeIcons.strokeRoundedDelete02,
-                color: Colors.white,
-                size: 20),
-            onPressed: _showClearDialog,
-            tooltip: '清除凭证',
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _webViewController),
-          if (_isLoading)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                color: _kPrimaryColor,
-                backgroundColor: _kPrimaryColor.withOpacity(0.12),
-                minHeight: 2.5,
-              ),
+        appBar: AppBar(
+          toolbarHeight: 40,
+          backgroundColor: _kPrimaryColor,
+          foregroundColor: Colors.white,
+          title: const Text('vivo设备查找', style: TextStyle(fontSize: 16)),
+          actions: [
+            IconButton(
+              icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedHome01,
+                  color: Colors.white,
+                  size: 20),
+              onPressed: _goHome,
+              tooltip: '主页',
             ),
-          if (_errorMessage.isNotEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildIconBadge(
-                      HugeIcons.strokeRoundedInformationSquare,
-                      size: 22,
-                      boxSize: 48,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '加载失败',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF333333),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _errorMessage,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                    ),
-                    const SizedBox(height: 28),
-                    SizedBox(
-                      width: 140,
-                      child: OutlinedButton(
-                        onPressed: _reloadPage,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: _kPrimaryColor,
-                          side: BorderSide(
-                              color: _kPrimaryColor.withOpacity(0.3)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('重新加载'),
-                      ),
-                    ),
-                  ],
+            IconButton(
+              icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedSquareArrowReload02,
+                  color: Colors.white,
+                  size: 20),
+              onPressed: _reloadPage,
+              tooltip: '刷新',
+            ),
+            IconButton(
+              icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedLocked,
+                  color: Colors.white,
+                  size: 20),
+              onPressed: _viewSavedPassword,
+              tooltip: '查看密码',
+            ),
+            IconButton(
+              icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedDelete02,
+                  color: Colors.white,
+                  size: 20),
+              onPressed: _showClearDialog,
+              tooltip: '清除凭证',
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            WebViewWidget(controller: _webViewController),
+            if (_isLoading)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  color: _kPrimaryColor,
+                  backgroundColor: _kPrimaryColor.withOpacity(0.12),
+                  minHeight: 2.5,
                 ),
               ),
-            ),
-        ],
+            if (_errorMessage.isNotEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildIconBadge(
+                        HugeIcons.strokeRoundedInformationSquare,
+                        size: 22,
+                        boxSize: 48,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        '加载失败',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: 140,
+                        child: OutlinedButton(
+                          onPressed: _reloadPage,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _kPrimaryColor,
+                            side: BorderSide(
+                                color: _kPrimaryColor.withOpacity(0.3)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('重新加载'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
