@@ -48,6 +48,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   String _errorMessage = '';
   String _lastPromptedCredentials = '';
   bool _hasShownAutoFillToast = false;
+  bool _isSavePasswordDialogShowing = false;
   DateTime? _lastBackPress;
 
   static const _secureStorage = FlutterSecureStorage(
@@ -1025,150 +1026,149 @@ class _WebViewScreenState extends State<WebViewScreen> {
   void _showSavePasswordDialog(String username, String password,
       {bool isUpdate = false}) {
     if (!mounted) return;
+    if (_isSavePasswordDialogShowing) return;
+    _isSavePasswordDialogShowing = true;
     bool showPassword = false;
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final maskedPwd = '*' * password.length;
-            return Dialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildIconBadge(HugeIcons.strokeRoundedLocked),
-                    const SizedBox(height: 16),
-                    Text(
-                      isUpdate ? '更新密码' : '保存密码',
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey[200]!),
+            return PopScope(
+              canPop: false,
+              child: Dialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildIconBadge(HugeIcons.strokeRoundedLocked),
+                      const SizedBox(height: 16),
+                      Text(
+                        isUpdate ? '更新密码' : '保存密码',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w600),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (username.isNotEmpty)
-                            Text(
-                              '账号: $username',
-                              style: TextStyle(
-                                  fontSize: 13, color: Colors.grey[700]),
-                            ),
-                          if (username.isNotEmpty) const SizedBox(height: 6),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  transitionBuilder: (child, animation) {
-                                    return FadeTransition(
-                                        opacity: animation, child: child);
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (username.isNotEmpty)
+                              Text(
+                                '账号: $username',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey[700]),
+                              ),
+                            if (username.isNotEmpty) const SizedBox(height: 6),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    showPassword
+                                        ? '密码: $password'
+                                        : '密码: $maskedPwd',
+                                    style: TextStyle(
+                                        fontSize: 13, color: Colors.grey[700]),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      showPassword = !showPassword;
+                                    });
                                   },
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      showPassword
-                                          ? '密码: $password'
-                                          : '密码: $maskedPwd',
-                                      key: ValueKey<bool>(showPassword),
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[700]),
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: Center(
+                                      child: Icon(
+                                        showPassword
+                                            ? Icons.visibility
+                                            : Icons.visibility_off,
+                                        size: 18,
+                                        color: Colors.grey[500],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setDialogState(() {
-                                    showPassword = !showPassword;
-                                  });
-                                },
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 200),
-                                  transitionBuilder: (child, animation) {
-                                    return FadeTransition(
-                                        opacity: animation, child: child);
-                                  },
-                                  child: Icon(
-                                    showPassword
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                    key: ValueKey<bool>(showPassword),
-                                    size: 18,
-                                    color: Colors.grey[500],
-                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                _isSavePasswordDialogShowing = false;
+                                Navigator.of(ctx).pop();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _kPrimaryColor,
+                                side: BorderSide(
+                                    color: _kPrimaryColor.withOpacity(0.3)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                            ],
+                              child: Text(isUpdate ? '取消' : '不保存'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                _isSavePasswordDialogShowing = false;
+                                Navigator.of(ctx).pop();
+                                _savePassword(username, password);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(isUpdate ? '密码已更新' : '密码已保存'),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    margin: const EdgeInsets.all(16),
+                                    backgroundColor:
+                                        _kPrimaryColor.withOpacity(0.9),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _kPrimaryColor,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(isUpdate ? '更新' : '保存'),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _kPrimaryColor,
-                              side: BorderSide(
-                                  color: _kPrimaryColor.withOpacity(0.3)),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(isUpdate ? '取消' : '不保存'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                              _savePassword(username, password);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(isUpdate ? '密码已更新' : '密码已保存'),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
-                                  margin: const EdgeInsets.all(16),
-                                  backgroundColor:
-                                      _kPrimaryColor.withOpacity(0.9),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _kPrimaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(isUpdate ? '更新' : '保存'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
